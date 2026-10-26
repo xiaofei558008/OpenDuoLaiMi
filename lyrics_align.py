@@ -24,7 +24,7 @@ def align(mp3, lyrics_txt):
     try:
         import opencc; cc = opencc.OpenCC("t2s").convert
     except Exception: cc = lambda x: x
-    if _M is None: _M = WhisperModel("small", compute_type="int8")
+    if _M is None: _M = WhisperModel("medium", compute_type="int8")  # small 版在歌声上系统性偏早 0.4s、最多 1.5s
     lines, sec = [], ""
     for l in lyrics_txt.splitlines():
         t = l.strip()
@@ -70,6 +70,18 @@ def align(mp3, lyrics_txt):
     for j in range(1, len(out)):
         if out[j]["start"] < out[j-1]["start"]: out[j]["start"] = out[j-1]["end"]
     return out
+
+def finalize(L, max_end=None):
+    """统一修正：行按时间排序、行尾不越过下一行开头、字的结束时间延伸到下一个字开头（卡拉OK平滑填色）。"""
+    L = sorted([l for l in L if l.get("text")], key=lambda l: l["start"])
+    for j, l in enumerate(L):
+        nxt = L[j+1]["start"] if j+1 < len(L) else (max_end or l["end"])
+        l["end"] = round(max(l["start"]+0.3, min(l["end"], nxt)), 3)
+        w = l.get("words") or []
+        for k, x in enumerate(w):
+            ne = w[k+1]["start"] if k+1 < len(w) else l["end"]
+            x["end"] = round(max(x["start"]+0.05, min(max(x["end"], ne), l["end"])), 3)
+    return L
 
 def write_lrc(lines, path):
     f = lambda t: f"[{int(t//60):02d}:{t%60:05.2f}]"

@@ -26,20 +26,25 @@ main{display:grid;grid-template-columns:340px 1fr;gap:18px;padding:18px;max-widt
 footer{text-align:center;font-size:12px;opacity:.6;padding:10px 20px 100px}
 @media(max-width:900px){main{grid-template-columns:1fr;padding:10px}.now{order:-1}.ln{font-size:15px;padding:4px 12px}.ln.cur{font-size:19px}.vol{display:none}.bar{gap:6px;padding:8px}}
 </style>__UMAMI__</head><body>
-<header><span id="sn">Open AI 音乐</span><small>开源 · 免费 · AI 原创音乐</small></header>
-<main><section class="card"><h3>歌曲列表</h3><div id="list"></div></section>
+<header><span id="sn">Open AI 音乐</span><small id="tag">开源 · 免费 · AI 原创音乐</small></header>
+<main><section class="card"><h3 id="lh">歌曲列表</h3><div id="list"></div></section>
 <section class="card now"><div class="stage" id="stg"><img id="cv" alt=""><video id="mv" playsinline muted hidden></video><div class="mask"></div><div id="lyr"><div id="lw"></div></div></div><h1 id="tt">加载中…</h1><div class="singer" id="sg"></div><div class="tags" id="tg"></div><div class="theme" id="th"></div></section></main>
-<footer>本站所有歌曲均由 AI 生成，许可协议 CC BY 4.0（以平台条款为准）· © <span id="sn2"></span></footer>
+<footer><span id="ft">本站所有歌曲均由 AI 生成，许可协议 CC BY 4.0（以平台条款为准）</span> · © <span id="sn2"></span></footer>
 <div class="bar"><button id="sh" class="off" title="随机">🔀</button><button id="pv" title="上一首">⏮</button><button id="pp" class="pp" title="播放">▶</button><button id="nx" title="下一首">⏭</button><button id="rp" class="off" title="循环">🔁</button>
 <div class="prog"><span id="cur">0:00</span><input id="sk" type="range" min="0" max="1000" value="0"><span id="tot">0:00</span></div>
 <span class="vol">🔊<input id="vl" type="range" min="0" max="1" step="0.01" value="0.8"></span><a id="dl" download title="下载">⬇</a></div>
 <audio id="au" preload="metadata"></audio>
 <script>
-const h=location.hostname,name=h.includes('doremi')?'OpenDoremi':'OpenDuolaimi';sn.textContent=sn2.textContent=name;document.title=name+' · 开源 AI 音乐';
+const h=location.hostname,EN=h.includes('doremi')||/[?&]lang=en/.test(location.search),name=h.includes('doremi')?'OpenDoremi':'OpenDuolaimi';
+const T=EN?{tag:'Open source · Free · Original AI music',lh:'Songs',ft:'All songs on this site are AI-generated, licensed CC BY 4.0 (subject to platform terms)',sub:'Open-source AI Music',by:'Vocals: ',th:'Theme: ',ai:'AI-generated',load:'Loading…'}
+:{tag:'开源 · 免费 · AI 原创音乐',lh:'歌曲列表',ft:'本站所有歌曲均由 AI 生成，许可协议 CC BY 4.0（以平台条款为准）',sub:'开源 AI 音乐',by:'演唱：',th:'主题：',ai:'AI生成',load:'加载中…'};
+const PY={'夏音禾':'Xia Yinhe','陈乐川':'Chen Lechuan','何曼伊':'He Manyi'};const SN=s=>EN?(PY[s]||s):s;
+if(EN)document.documentElement.lang='en';tag.textContent=T.tag;lh.textContent=T.lh;ft.textContent=T.ft;tt.textContent=T.load;
+sn.textContent=sn2.textContent=name;document.title=name+' · '+T.sub;
 let S=[],i=0,shuf=false,rep=false;const f=s=>{s=Math.floor(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
-fetch('/songs/catalog.json').then(r=>r.json()).then(d=>{S=d;list.innerHTML=d.map((s,k)=>`<div class="item" data-k="${k}"><img src="${s.cover}" alt=""><div><b>${s.title}</b><span>${s.singer||''} · ${s.genre} · ${f(s.duration)}</span></div></div>`).join('');list.onclick=e=>{const t=e.target.closest('.item');if(t){load(+t.dataset.k);au.play()}};load(0)});
-function load(k){i=k;const s=S[k];au.src=s.mp3;cv.src=s.cover;tt.textContent=s.title;sg.textContent=s.singer?'演唱：'+s.singer:'';th.textContent='主题：'+s.theme;dl.href=s.mp3;dl.download=(s.singer?s.singer+' - ':'')+s.title+'.mp3';document.title=s.title+' - '+(s.singer||'')+' · '+name;
-tg.innerHTML=`<span class="tag ai">AI生成</span>`+[s.genre,s.mood,s.vocal].map(x=>`<span class="tag">${x}</span>`).join('');
+fetch('/songs/catalog.json').then(r=>r.json()).then(d=>{S=d;list.innerHTML=d.map((s,k)=>`<div class="item" data-k="${k}"><img src="${s.cover}" alt=""><div><b>${s.title}${EN&&s.title_en?' <i style="font-weight:400;opacity:.6;font-size:12px">'+s.title_en+'</i>':''}</b><span>${SN(s.singer||'')} · ${EN?(s.genre_en||s.genre):s.genre} · ${f(s.duration)}</span></div></div>`).join('');list.onclick=e=>{const t=e.target.closest('.item');if(t){load(+t.dataset.k);au.play()}};load(0)});
+function load(k){i=k;const s=S[k];au.src=s.mp3;cv.src=s.cover;tt.textContent=s.title+(EN&&s.title_en?' · '+s.title_en:'');sg.textContent=s.singer?T.by+SN(s.singer):'';th.textContent=T.th+(EN?(s.theme_en||s.theme):s.theme);dl.href=s.mp3;dl.download=(s.singer?s.singer+' - ':'')+s.title+'.mp3';document.title=s.title+' - '+SN(s.singer||'')+' · '+name;
+tg.innerHTML=`<span class="tag ai">${T.ai}</span>`+(EN?[s.genre_en||s.genre,s.mood_en||s.mood]:[s.genre,s.mood,s.vocal]).map(x=>`<span class="tag">${x}</span>`).join('');
 setMedia(s);loadLyrics(s);tot.textContent=f(s.duration);
 document.querySelectorAll('.item').forEach(e=>e.classList.toggle('on',+e.dataset.k==k));}
 let L=null,cl=-1;

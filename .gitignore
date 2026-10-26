@@ -18,3 +18,5 @@ __pycache__/
 models/
 huggingface/
 *-umami*.txt
+pub/
+*.log

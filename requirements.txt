@@ -1,4 +1,5 @@
-requests>=2.31
 faster-whisper>=1.0
 numpy
 opencc-python-reimplemented
+pypinyin
+requests>=2.31

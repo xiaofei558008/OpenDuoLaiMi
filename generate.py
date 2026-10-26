@@ -114,10 +114,12 @@ def build_catalog(out):
         d=os.path.dirname(od); sid=os.path.basename(d); m=json.load(open(od,encoding="utf-8"))
         m.setdefault("singer",singer_of(m.get("vocal","")))
         cat.append(dict(id=sid,title=m["title"],singer=m["singer"],theme=m["theme"],genre=m["genre"],mood=m["mood"],vocal=m["vocal"],
+            title_en=m.get("title_en"),title_pinyin=m.get("title_pinyin"),theme_en=m.get("theme_en"),genre_en=m.get("genre_en"),mood_en=m.get("mood_en"),created=m.get("created"),
             duration=round((m.get("duration_ms") or 0)/1000),cover=f"/songs/{sid}/cover.jpg",mp3=f"/songs/{sid}/song.mp3",
             lyrics=open(os.path.join(d,"lyrics.txt"),encoding="utf-8").read()))
         if os.path.exists(os.path.join(d,"lyrics.json")): cat[-1]["timed"]=f"/songs/{sid}/lyrics.json"
         if m.get("video"): cat[-1]["video"]=m["video"]  # 预留：MV/演唱会视频 URL
+    cat.sort(key=lambda x:x.get("created") or "",reverse=True)
     json.dump(cat,open(os.path.join(out,"catalog.json"),"w",encoding="utf-8"),ensure_ascii=False,indent=1)
     return cat
 
