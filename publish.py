@@ -20,6 +20,7 @@ def stage():
             m=json.load(open(mp,encoding="utf-8"))
             if m.pop("label",None) is not None: json.dump(m,open(mp,"w",encoding="utf-8"),ensure_ascii=False,indent=2)
     shutil.copy2(os.path.join(OUT,"catalog.json"),PUB+"/songs/catalog.json")
+    shutil.copytree("site/singers",PUB+"/songs/singers",dirs_exist_ok=True)
     t=open("site/tpl.html",encoding="utf-8").read()
     for k,v in IDS.items(): open(f"{PUB}/{k}.html","w",encoding="utf-8").write(t.replace("__UMAMI__",UM.format(v)))
     shutil.copy2(f"{PUB}/duo.html",PUB+"/songs/_duo.html")

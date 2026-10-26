@@ -29,17 +29,18 @@ nav.top a{color:#ccc;text-decoration:none;font-size:15px;padding:18px 4px;cursor
 .banner{max-width:1300px;margin:16px auto 0;padding:0 18px}.bn{display:flex;gap:18px;align-items:center;border-radius:16px;padding:18px;background:linear-gradient(120deg,#3a1f7a,#8a2a63);overflow:hidden;position:relative}
 .bn img{width:150px;height:150px;border-radius:12px;box-shadow:0 8px 24px #0008;flex:none}.bn .k{font-size:12px;letter-spacing:2px;opacity:.75}.bn h2{margin:6px 0;font-size:26px}.bn p{margin:4px 0;opacity:.8;font-size:14px}
 .bn button{margin-top:10px;background:#fff;color:#8a2a63;border:0;border-radius:99px;padding:8px 22px;font-weight:700;cursor:pointer}
-.bn .more{display:flex;gap:10px;margin-left:auto}.bn .more img{width:96px;height:96px;cursor:pointer;opacity:.85}.bn .more img:hover{opacity:1}
+.bn .more{display:flex;gap:10px;margin-left:auto}.bn img.av{width:18px;height:18px;box-shadow:none;border-radius:50%}.bn .more img{width:96px;height:96px;cursor:pointer;opacity:.85}.bn .more img:hover{opacity:1}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.chip{font-size:13px;padding:5px 12px;border-radius:99px;background:#25264a;cursor:pointer;border:0;color:#ddd}.chip.on{background:#e2468f;color:#fff}
 .cg{font-size:11px;opacity:.5;margin:8px 0 4px;width:100%}.note{font-size:12px;opacity:.6;margin:0 0 8px}
 .item .no{width:24px;text-align:center;font-weight:700;opacity:.5;flex:none}.item:nth-child(-n+3) .no{color:#ff5fa8;opacity:1}
 #list{max-height:calc(100vh - 220px);overflow-y:auto}
+.av{width:18px;height:18px;border-radius:50%;vertical-align:-4px;margin-right:4px;object-fit:cover}.sa{width:30px;height:30px;border-radius:50%;vertical-align:middle;margin-right:8px;border:2px solid #ffb3d4;object-fit:cover}.shd{display:flex;align-items:center;gap:14px;margin:4px 0 10px}.shd .sh{width:84px;height:84px;border-radius:50%;border:3px solid #ff5fa8;object-fit:cover}.shd b{font-size:20px}.item img.av{width:18px;height:18px;border-radius:50%}
 footer{text-align:center;font-size:12px;opacity:.6;padding:10px 20px 100px}
 @media(max-width:900px){nav.top{gap:12px;padding:0 10px;overflow-x:auto}nav.top small{display:none}.bn .more{display:none}.bn img{width:96px;height:96px}.bn h2{font-size:19px}#list{max-height:none}main{grid-template-columns:1fr;padding:10px}.now{order:-1}.ln{font-size:15px;padding:4px 12px}.ln.cur{font-size:19px}.vol{display:none}.bar{gap:6px;padding:8px}}
 </style>__UMAMI__</head><body>
 <nav class="top"><span class="brand" id="sn">Open AI 音乐</span><a id="n1" class="on" data-c="new">发现</a><a id="n2" data-c="hot">榜单</a><a id="n3" data-c="s:夏音禾">歌手</a><small id="tag"></small></nav>
 <div class="banner"><div class="bn" id="bn"></div></div>
-<main><section class="card"><h3 id="lh">歌曲列表</h3><div class="chips" id="chips"></div><p class="note" id="note"></p><div id="list"></div></section>
+<main><section class="card"><h3 id="lh">歌曲列表</h3><div class="chips" id="chips"></div><div id="shd"></div><p class="note" id="note"></p><div id="list"></div></section>
 <section class="card now"><div class="stage" id="stg"><img id="cv" alt=""><video id="mv" playsinline muted hidden></video><div class="mask"></div><div id="lyr"><div id="lw"></div></div></div><h1 id="tt">加载中…</h1><div class="singer" id="sg"></div><div class="tags" id="tg"></div><div class="theme" id="th"></div></section></main>
 <footer><span id="ft">本站所有歌曲许可协议 CC BY 4.0（以平台条款为准）</span> · © <span id="sn2"></span></footer>
 <div class="bar"><button id="sh" class="off" title="随机">🔀</button><button id="pv" title="上一首">⏮</button><button id="pp" class="pp" title="播放">▶</button><button id="nx" title="下一首">⏭</button><button id="rp" class="off" title="循环">🔁</button>
@@ -51,7 +52,8 @@ const h=location.hostname,EN=h.includes('doremi')||/[?&]lang=en/.test(location.s
 const T=EN?{tag:'Open source · Free · Original AI music',lh:'Songs',ft:'All songs on this site are licensed CC BY 4.0 (subject to platform terms)',sub:'Open-source AI Music',by:'Vocals: ',th:'Theme: ',ai:'',load:'Loading…'}
 :{tag:'开源 · 免费 · AI 原创音乐',lh:'歌曲列表',ft:'本站所有歌曲许可协议 CC BY 4.0（以平台条款为准）',sub:'开源 AI 音乐',by:'演唱：',th:'主题：',ai:'',load:'加载中…'};
 const L2=EN?{new:'New Releases',hot:'Top Played',chart:'Charts',singer:'Singers',style:'Styles',n1:'Discover',n2:'Charts',n3:'Singers',feat:'NEW RELEASE',play:'▶ Play',hotnote:'Not enough play data yet, so this chart shows the newest songs.',hotok:'Ranked by actual plays.',st:{gf:'Chinese Traditional',ql:'Ballads',dz:'Electronic / Dance',rb:'R&B / Rap',my:'Folk',yg:'Rock',qt:'Other'}}:{new:'新歌榜',hot:'热歌榜',chart:'榜单',singer:'歌手',style:'风格',n1:'发现',n2:'榜单',n3:'歌手',feat:'新歌首发',play:'▶ 播放',hotnote:'播放数据还不够，暂按最新发布排序。',hotok:'按真实播放次数排序。',st:{gf:'国风',ql:'抒情',dz:'电子舞曲',rb:'R&B / 说唱',my:'民谣',yg:'摇滚',qt:'其他'}};
-const PY={'夏音禾':'Xia Yinhe','陈乐川':'Chen Lechuan','何曼伊':'He Manyi'};const SN=s=>EN?(PY[s]||s):s;
+const PY={'夏音禾':'Xia Yinhe','陈乐川':'Chen Lechuan','何曼伊':'He Manyi'};const AVK={'夏音禾':'xiayinhe','陈乐川':'chenlechuan','何曼伊':'hemanyi'};const AV=(s,big)=>AVK[s]?`/songs/singers/${AVK[s]}${big?'':'-96'}.webp`:'';const AVI=(s,c)=>AV(s)?`<img class="${c}" src="${AV(s,c=='sh')}" alt="" loading="lazy">`:'';
+const SN=s=>EN?(PY[s]||s):s;
 if(EN)document.documentElement.lang='en';tag.textContent=T.tag;lh.textContent=T.lh;ft.textContent=T.ft;tt.textContent=T.load;
 sn.textContent=sn2.textContent=name;n1.textContent=L2.n1;n2.textContent=L2.n2;n3.textContent=L2.n3;document.title=name+' · '+T.sub;
 let S=[],i=0,shuf=false,rep=false;const f=s=>{s=Math.floor(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
@@ -60,18 +62,18 @@ let V=[],C='new',P={};
 function view(c){C=c;const idx=S.map((_,k)=>k);let v=idx,nt='';
 if(c=='hot'){const has=Object.values(P).some(x=>x>0);if(has){v=idx.filter(k=>P[S[k].id]).sort((a,b)=>P[S[b].id]-P[S[a].id]).concat(idx.filter(k=>!P[S[k].id]));nt=L2.hotok}else nt=L2.hotnote}
 else if(c.startsWith('s:'))v=idx.filter(k=>S[k].singer==c.slice(2));else if(c.startsWith('g:'))v=idx.filter(k=>STY(S[k].genre||'')==c.slice(2));
-V=v;note.textContent=nt;lh.textContent=chipName(c);
+V=v;note.textContent=nt;shd.innerHTML=c.startsWith('s:')?`<div class="shd">${AVI(c.slice(2),'sh')}<div><b>${SN(c.slice(2))}</b><br><span style="opacity:.6;font-size:13px">${v.length} ${EN?'songs':'首歌'}</span></div></div>`:'';lh.textContent=chipName(c);
 document.querySelectorAll('.chip').forEach(e=>e.classList.toggle('on',e.dataset.c==c));document.querySelectorAll('nav.top a').forEach(e=>e.classList.toggle('on',c=='new'?e.id=='n1':c=='hot'?e.id=='n2':c.startsWith('s:')?e.id=='n3':false));
-list.innerHTML=v.map((k,n)=>{const s=S[k];return `<div class="item" data-k="${k}"><span class="no">${n+1}</span><img src="${s.cover}" alt="" loading="lazy"><div><b>${s.title}${EN&&s.title_en?' <i style="font-weight:400;opacity:.6;font-size:12px">'+s.title_en+'</i>':''}</b><span>${SN(s.singer||'')} · ${EN?(s.genre_en||s.genre):s.genre} · ${f(s.duration)}${c=='hot'&&P[s.id]?' · ▶'+P[s.id]:''}</span></div></div>`}).join('');mark();}
+list.innerHTML=v.map((k,n)=>{const s=S[k];return `<div class="item" data-k="${k}"><span class="no">${n+1}</span><img src="${s.cover}" alt="" loading="lazy"><div><b>${s.title}${EN&&s.title_en?' <i style="font-weight:400;opacity:.6;font-size:12px">'+s.title_en+'</i>':''}</b><span>${AVI(s.singer,'av')}${SN(s.singer||'')} · ${EN?(s.genre_en||s.genre):s.genre} · ${f(s.duration)}${c=='hot'&&P[s.id]?' · ▶'+P[s.id]:''}</span></div></div>`}).join('');mark();}
 function chipName(c){return c=='new'?L2.new:c=='hot'?L2.hot:c.startsWith('s:')?SN(c.slice(2)):L2.st[c.slice(2)]}
 function chipsUI(){const sg=[...new Set(S.map(s=>s.singer).filter(Boolean))],gs=Object.keys(L2.st).filter(g=>S.some(s=>STY(s.genre||'')==g));
 const b=c=>`<button class="chip" data-c="${c}">${chipName(c)}</button>`;chips.innerHTML=`<div class="cg">${L2.chart}</div>`+b('new')+b('hot')+`<div class="cg">${L2.singer}</div>`+sg.map(x=>b('s:'+x)).join('')+`<div class="cg">${L2.style}</div>`+gs.map(x=>b('g:'+x)).join('');
 chips.onclick=e=>{const t=e.target.closest('.chip');if(t)view(t.dataset.c)};document.querySelector('nav.top').onclick=e=>{const a=e.target.closest('a');if(a)view(a.dataset.c)}}
-function banner(){const s=S[0];if(!s)return;bn.innerHTML=`<img src="${s.cover}" alt=""><div><div class="k">${L2.feat}</div><h2>${s.title}${EN&&s.title_en?' · '+s.title_en:''}</h2><p>${SN(s.singer||'')} · ${EN?(s.genre_en||s.genre):s.genre}</p><button id="bp">${L2.play}</button></div><div class="more">${S.slice(1,5).map((x,k)=>`<img src="${x.cover}" data-k="${k+1}" title="${x.title}">`).join('')}</div>`;
+function banner(){const s=S[0];if(!s)return;bn.innerHTML=`<img src="${s.cover}" alt=""><div><div class="k">${L2.feat}</div><h2>${s.title}${EN&&s.title_en?' · '+s.title_en:''}</h2><p>${AVI(s.singer,'av')}${SN(s.singer||'')} · ${EN?(s.genre_en||s.genre):s.genre}</p><button id="bp">${L2.play}</button></div><div class="more">${S.slice(1,5).map((x,k)=>`<img src="${x.cover}" data-k="${k+1}" title="${x.title}">`).join('')}</div>`;
 bp.onclick=()=>{view('new');load(0);au.play()};bn.querySelector('.more').onclick=e=>{const k=e.target.dataset.k;if(k){view('new');load(+k);au.play()}}}
 function mark(){document.querySelectorAll('.item').forEach(e=>e.classList.toggle('on',+e.dataset.k==i))}
 fetch('/songs/catalog.json').then(r=>r.json()).then(d=>{S=d;chipsUI();banner();fetch('/songs/stats.json').then(r=>r.ok?r.json():{}).catch(()=>({})).then(p=>{P=p||{};if(C=='hot')view('hot')});view('new');list.onclick=e=>{const t=e.target.closest('.item');if(t){load(+t.dataset.k);au.play()}};load(0)});
-function load(k){i=k;const s=S[k];au.src=s.mp3;cv.src=s.cover;tt.textContent=s.title+(EN&&s.title_en?' · '+s.title_en:'');sg.textContent=s.singer?T.by+SN(s.singer):'';th.textContent=T.th+(EN?(s.theme_en||s.theme):s.theme);dl.href=s.mp3;dl.download=(s.singer?s.singer+' - ':'')+s.title+'.mp3';document.title=s.title+' - '+SN(s.singer||'')+' · '+name;
+function load(k){i=k;const s=S[k];au.src=s.mp3;cv.src=s.cover;tt.textContent=s.title+(EN&&s.title_en?' · '+s.title_en:'');sg.innerHTML=s.singer?AVI(s.singer,'sa')+T.by+SN(s.singer):'';th.textContent=T.th+(EN?(s.theme_en||s.theme):s.theme);dl.href=s.mp3;dl.download=(s.singer?s.singer+' - ':'')+s.title+'.mp3';document.title=s.title+' - '+SN(s.singer||'')+' · '+name;
 tg.innerHTML=(EN?[s.genre_en||s.genre,s.mood_en||s.mood]:[s.genre,s.mood,s.vocal]).map(x=>`<span class="tag">${x}</span>`).join('');
 setMedia(s);loadLyrics(s);tot.textContent=f(s.duration);
 mark();}
