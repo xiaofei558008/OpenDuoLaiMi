@@ -31,3 +31,9 @@
 ## 许可
 
 每首歌标注“AI 生成”，以 CC BY 4.0（以平台条款为准）发布。密钥、密码与生成的媒体文件不入库。
+
+## 流媒体与发布（2026-10）
+- 音频：每首歌同时发布 `song.opus`（libopus 96k VBR，约比 mp3 小 44%）与 `song.mp3`，播放器按 `canPlayType` 优先 Opus。
+- MV：HLS（720p ~1.5Mbps / 480p ~0.75Mbps，2s 关键帧，4s 分片）+ `mv_small.mp4` faststart 兜底；播放器 Safari 原生 HLS，其他浏览器用本地 `site/hls.min.js`。
+- opendoremi.com 对疑似中国大陆访客（时区/语言判断，无 IP 定位）显示可关闭横幅，指向 openduolaimi.com 同一首歌。
+- 阿里云默认发布路线：`alipush.py`（国内直推，分块 tar + md5 + `deploy/alipush_apply.sh`），`alipull.sh` 仅作兜底。

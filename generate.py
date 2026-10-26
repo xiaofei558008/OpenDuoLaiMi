@@ -118,6 +118,8 @@ def build_catalog(out):
             duration=round((m.get("duration_ms") or 0)/1000),cover=f"/songs/{sid}/cover.jpg",mp3=f"/songs/{sid}/song.mp3",
             lyrics=open(os.path.join(d,"lyrics.txt"),encoding="utf-8").read()))
         if os.path.exists(os.path.join(d,"lyrics.json")): cat[-1]["timed"]=f"/songs/{sid}/lyrics.json"
+        if os.path.exists(os.path.join(d,"song.opus")): cat[-1]["opus"]=f"/songs/{sid}/song.opus"
+        if m.get("hls"): cat[-1]["hls"]=m["hls"]
         if m.get("video"): cat[-1]["video"]=m["video"]  # 预留：MV/演唱会视频 URL
     cat.sort(key=lambda x:x.get("created") or "",reverse=True)
     json.dump(cat,open(os.path.join(out,"catalog.json"),"w",encoding="utf-8"),ensure_ascii=False,indent=1)
