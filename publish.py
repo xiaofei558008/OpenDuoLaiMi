@@ -5,7 +5,7 @@ from generate import build_catalog
 OUT="out"; PUB="pub"
 UM='<script defer src="https://stats.opendebugger.com/script.js" data-website-id="{}" class="umami-tracker"></script>'
 IDS={"duo":"93cf5b4d-137e-4fe9-b791-7fd667756b00","dor":"7899420c-45e5-4de7-ab65-5a656cdf7d65"}
-FILES=("song.mp3","cover.jpg","lyrics.txt","lyrics.json","lyrics.lrc","meta.json")
+FILES=("song.mp3","cover.jpg","lyrics.txt","lyrics.json","lyrics.lrc","meta.json","mv.mp4")
 def stage():
     cat=[c for c in build_catalog(OUT) if os.path.exists(os.path.join(OUT,c["id"],"cover.jpg"))]
     json.dump(cat,open(os.path.join(OUT,"catalog.json"),"w",encoding="utf-8"),ensure_ascii=False,indent=1)
