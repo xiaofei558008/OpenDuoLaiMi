@@ -31,7 +31,10 @@ def write(it, counts, tries=4):
       '"cover_prompt":"抽象艺术封面英文描述,无文字无人物"}')
     for _ in range(tries):
         try:
-            r=requests.post(XAI+"/chat/completions",headers=xh(),json={"model":TEXT_MODEL,"messages":[{"role":"user","content":prompt}],"response_format":{"type":"json_object"}},timeout=240)
+            import concurrent.futures as cf
+            ex=cf.ThreadPoolExecutor(1); fu=ex.submit(requests.post,XAI+"/chat/completions",headers=xh(),json={"model":TEXT_MODEL,"messages":[{"role":"user","content":prompt}],"response_format":{"type":"json_object"}},timeout=(20,180))
+            try: r=fu.result(timeout=300)
+            finally: ex.shutdown(wait=False)
             r.raise_for_status(); d=json.loads(r.json()["choices"][0]["message"]["content"])
         except Exception as e: print("grok err",e); time.sleep(5); continue
         if d.get("singer") not in SINGERS: d["singer"]="陈乐川"
@@ -104,7 +107,7 @@ def one(it,counts,out):
         mureka_task_id=tid,lyrics_timing=src,ai_trim=tr,tail_ok=ok,tail_asr=tail,
         reference={"chart":it["src"],"rank":it["rank"],"note":"仅参考题材/曲风/情绪，歌词旋律均为原创"},
         models={"lyrics":TEXT_MODEL,"cover":IMG_MODEL,"music":q.get("model",MUREKA_MODEL)},
-        created=datetime.datetime.now().isoformat(),label="AI生成",license="CC BY 4.0（以平台条款为准）")
+        created=datetime.datetime.now().isoformat(),license="CC BY 4.0（以平台条款为准）")
     json.dump(meta,open(os.path.join(od,"meta.json"),"w",encoding="utf-8"),ensure_ascii=False,indent=2)
     counts[s]+=1
     print(f"DONE {sid} 《{d['title']}》 {s} {dur:.0f}s timing={src} tail_ok={ok} ref={it['src']}#{it['rank']}",flush=True)

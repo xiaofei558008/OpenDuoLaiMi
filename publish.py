@@ -15,6 +15,10 @@ def stage():
         for f in FILES:
             s=os.path.join(OUT,c["id"],f)
             if os.path.exists(s): shutil.copy2(s,d)
+        mp=os.path.join(d,"meta.json")
+        if os.path.exists(mp):
+            m=json.load(open(mp,encoding="utf-8"))
+            if m.pop("label",None) is not None: json.dump(m,open(mp,"w",encoding="utf-8"),ensure_ascii=False,indent=2)
     shutil.copy2(os.path.join(OUT,"catalog.json"),PUB+"/songs/catalog.json")
     t=open("site/tpl.html",encoding="utf-8").read()
     for k,v in IDS.items(): open(f"{PUB}/{k}.html","w",encoding="utf-8").write(t.replace("__UMAMI__",UM.format(v)))

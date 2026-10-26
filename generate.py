@@ -104,7 +104,7 @@ def main():
         gen_cover(d.get("cover_prompt",d["theme"]),os.path.join(od,"cover.jpg"))
         meta={k:d[k] for k in("title","theme","genre","mood","tempo","vocal")}
         meta.update(singer=singer,style_prompt=style,duration_ms=c.get("duration"),models={"lyrics":TEXT_MODEL,"cover":IMG_MODEL,"music":q.get("model",MUREKA_MODEL)},
-            created=datetime.datetime.now().isoformat(),label="AI生成",license="CC BY 4.0（以平台条款为准）")
+            created=datetime.datetime.now().isoformat(),license="CC BY 4.0（以平台条款为准）")
         json.dump(meta,open(os.path.join(od,"meta.json"),"w",encoding="utf-8"),ensure_ascii=False,indent=2)
         print("done",sid,meta["title"])
     return a.out
