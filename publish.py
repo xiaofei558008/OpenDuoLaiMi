@@ -2,6 +2,7 @@
 """打包发布：生成 catalog + 两站 index.html，同步 Oracle(opendoremi，英文界面)，并打包阿里云(openduolaimi)的增量包。"""
 import os, json, shutil, subprocess, tarfile, glob, sys, time
 from generate import build_catalog
+import api
 OUT="out"; PUB="pub"
 UM='<script defer src="https://stats.opendebugger.com/script.js" data-website-id="{}" class="umami-tracker"></script>'
 IDS={"duo":"93cf5b4d-137e-4fe9-b791-7fd667756b00","dor":"7899420c-45e5-4de7-ab65-5a656cdf7d65"}
@@ -27,6 +28,7 @@ def stage():
     t=open("site/tpl.html",encoding="utf-8").read()
     for k,v in IDS.items(): open(f"{PUB}/{k}.html","w",encoding="utf-8").write(t.replace("__UMAMI__",UM.format(v)))
     shutil.copy2(f"{PUB}/duo.html",PUB+"/songs/_duo.html")
+    api.build(cat)  # /api/v1/catalog.json
     return cat
 def oracle():
     P="/workspace/oracle/venv/bin/python"; R="/workspace/oracle/rsh.py"
@@ -34,7 +36,8 @@ def oracle():
     subprocess.run([P,R,"run",f"mkdir -p ~/bak-{ts} && cp /var/www/opendoremi.com/index.html ~/bak-{ts}/ && cp /var/www/music-data/songs/catalog.json ~/bak-{ts}/ ; mkdir -p ~/stage/songs"],check=True)
     subprocess.run([P,R,"puttree",PUB+"/songs","/home/ubuntu/stage/songs"],check=True,stdout=subprocess.DEVNULL)
     subprocess.run([P,R,"put",PUB+"/dor.html","/home/ubuntu/stage/index.html"],check=True)
-    subprocess.run([P,R,"run","sudo cp -r /home/ubuntu/stage/songs/. /var/www/music-data/songs/ && sudo cp /home/ubuntu/stage/index.html /var/www/opendoremi.com/index.html && sudo chown -R www-data:www-data /var/www/opendoremi.com /var/www/music-data && echo SYNC_OK"],check=True)
+    subprocess.run([P,R,"put",PUB+"/api/dor/v1/catalog.json","/home/ubuntu/stage/catalog.json"],check=True)
+    subprocess.run([P,R,"run","sudo cp -r /home/ubuntu/stage/songs/. /var/www/music-data/songs/ && sudo cp /home/ubuntu/stage/index.html /var/www/opendoremi.com/index.html && sudo mkdir -p /var/www/opendoremi.com/api/v1 && sudo cp /home/ubuntu/stage/catalog.json /var/www/opendoremi.com/api/v1/catalog.json && sudo chown -R www-data:www-data /var/www/opendoremi.com /var/www/music-data && echo SYNC_OK"],check=True)
 def aliyun_pkg(path="/workspace/aimusic/alipkg.tgz"):
     with tarfile.open(path,"w:gz") as t:
         t.add(PUB+"/songs",arcname="songs"); t.add(PUB+"/duo.html",arcname="duo.html")
