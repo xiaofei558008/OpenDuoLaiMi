@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenDoremi account API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=opendoremi
+Group=opendoremi
+WorkingDirectory=/opt/opendoremi-api/server
+EnvironmentFile=/etc/opendoremi-api.env
+ExecStart=/opt/opendoremi-api/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8090 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-access-log
+Restart=always
+RestartSec=3
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

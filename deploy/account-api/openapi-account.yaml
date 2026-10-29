@@ -1,0 +1,1130 @@
+openapi: 3.1.0
+info:
+  title: OpenDoremi Account & Sync API
+  version: 1.0.0-draft.2
+  summary: 账号、会话（设备）、收藏/歌单/关注歌手/播放历史/续播/设置同步，注销
+  description: 'OpenDoremi（原哆来咪）AI 音乐播放器后端账号接口约定。客户端：Windows（WinUI 3）、Android、微信小程序、网站。
+
+    所有路径在 /api/v1 下；破坏性变更才升 /v2。详见同目录 README.md。
+
+
+    v1 登录可选：不登录也能完整使用（本地收藏/历史/歌单），登录仅用于收藏与历史跨设备同步。只收集邮箱或微信 openid，不收集手机号、实名。
+
+
+    draft.2（小网合并）：按 Tom v1 范围：同步仅 收藏/播放历史/续播位置（+设置）；新增 设备列表、注销账号、membership_tier（只读）；微信仅小程序登录；歌单/关注歌手推迟到 v1.1（x-planned）；忘记密码推迟；播放历史服务端只保留最近 500 条。
+
+    '
+  contact:
+    name: kevin.cheng 程序员小程（后端）
+  license:
+    name: Proprietary
+    identifier: LicenseRef-OpenDoremi-Proprietary
+servers:
+- url: https://openduolaimi.com/api/v1
+  description: 生产（阿里云，主站同域，nginx 反代到账号服务）
+- url: http://127.0.0.1:8090
+  description: 本地（服务器本机，uvicorn 直连，无 /api/v1 前缀）
+security:
+- bearerAuth: []
+tags:
+- name: auth
+  description: 注册、登录、刷新、登出
+- name: me
+  description: 当前用户（只读，最小信息）
+- name: sync
+  description: 收藏与播放历史增量同步
+- name: meta
+  description: 公钥等元信息
+- name: devices
+  description: 登录设备（会话）管理
+paths:
+  /auth/register:
+    post:
+      tags:
+      - auth
+      operationId: register
+      summary: 邮箱 + 密码注册（成功即登录）
+      description: 不需要邮件验证码，v1 不发送任何邮件。
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 已创建并登录
+          headers: &id001
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/Error'
+  /auth/login:
+    post:
+      tags:
+      - auth
+      operationId: login
+      summary: 登录（邮箱/手机号 + 密码）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/Error'
+  /auth/wechat:
+    post:
+      tags:
+      - auth
+      operationId: loginWechat
+      summary: 微信小程序登录（code2session，首次自动建号）
+      description: 仅小程序：wx.login() 得到 code，服务端调用 jscode2session 换 openid/unionid；session_key 只留服务端、绝不下发。v1 不做开放平台扫码/移动应用 OAuth。不获取昵称、头像、手机号。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - code
+              - app
+              - client
+              properties:
+                code:
+                  type: string
+                  maxLength: 128
+                app:
+                  type: string
+                  description: v1 仅 miniprogram
+                  const: miniprogram
+                client:
+                  $ref: '#/components/schemas/ClientInfo'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '201':
+          description: 首次登录，已建号
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /auth/refresh:
+    post:
+      tags:
+      - auth
+      operationId: refreshToken
+      summary: 刷新令牌（轮换 + 重用检测）
+      description: '每次刷新都签发新的 refresh token，旧的立即失效（保留 10 秒宽限期以容忍并发/网络重试，宽限期内返回同一对新令牌）。
+
+        已轮换过的旧 refresh token 在宽限期外再次出现 → 判定为泄露，撤销整条令牌家族（该会话），返回 401 REFRESH_TOKEN_REUSED。
+
+        '
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: 新令牌对
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/Error'
+  /auth/logout:
+    post:
+      tags:
+      - auth
+      operationId: logout
+      summary: 登出当前会话（撤销其 refresh token 家族）
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                all_sessions:
+                  type: boolean
+                  default: false
+                  description: true 时登出全部设备
+      responses:
+        '204':
+          description: 已登出
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+      description: all_sessions=true 用于丢失设备时让所有设备下线（替代设备管理）。
+  /.well-known/jwks.json:
+    get:
+      tags:
+      - meta
+      operationId: getJwks
+      summary: 公钥集合（Ed25519），供网站/其他服务验签
+      security: []
+      responses:
+        '200':
+          description: JWKS
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - keys
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - kty
+                      - crv
+                      - x
+                      - kid
+                      - alg
+                      - use
+                      properties:
+                        kty:
+                          const: OKP
+                        crv:
+                          const: Ed25519
+                        x:
+                          type: string
+                        kid:
+                          type: string
+                        alg:
+                          const: EdDSA
+                        use:
+                          const: sig
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /me:
+    get:
+      tags:
+      - me
+      operationId: getMe
+      summary: 当前用户（最小信息）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      tags:
+      - me
+      operationId: deleteMe
+      summary: 注销账号并删除全部数据
+      description: 立即撤销所有会话；同步硬删除 users 及其 devices/sessions/favorites/playlists/playlist_items/followed_singers/play_history/resume/settings（ON DELETE CASCADE），备份按保留期（7 天）自然轮换清除。邮箱账号需 password 二次确认；微信账号需 confirm="DELETE"。成功后客户端清除本地令牌，本地数据保留为未登录状态。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+            example:
+              password: correct-horse-battery
+              confirm: DELETE
+      responses:
+        '204':
+          description: 已删除
+        '401': &id002
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/Error'
+  /sync/favorites:
+    get:
+      tags:
+      - sync
+      operationId: pullFavorites
+      summary: 增量拉取收藏（含墓碑）
+      parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页变更
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoritePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '410':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags:
+      - sync
+      operationId: pushFavorites
+      summary: 批量 upsert/删除收藏（LWW）
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - changes
+              properties:
+                changes:
+                  type: array
+                  maxItems: 500
+                  items:
+                    $ref: '#/components/schemas/FavoriteChange'
+      responses:
+        '200':
+          description: 每条变更的结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          $ref: '#/components/responses/Error'
+      description: 首登合并也走这个接口：带 Idempotency-Key 分批上传本地全部记录，按 LWW 合并。
+  /sync/history:
+    get:
+      tags:
+      - sync
+      operationId: pullHistory
+      summary: 增量拉取播放历史（含墓碑）
+      parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页变更
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '410':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags:
+      - sync
+      operationId: pushHistory
+      summary: 批量 upsert/删除播放历史（LWW）
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - changes
+              properties:
+                changes:
+                  type: array
+                  maxItems: 500
+                  items:
+                    $ref: '#/components/schemas/HistoryChange'
+      responses:
+        '200':
+          description: 每条变更的结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          $ref: '#/components/responses/Error'
+      description: 首登合并也走这个接口：带 Idempotency-Key 分批上传本地全部记录，按 LWW 合并。 服务端每用户只保留 played_at 最新的 500 条，超出部分物理删除（不产生墓碑，客户端也应本地裁剪到 500）。
+  /me/devices:
+    get:
+      tags:
+      - devices
+      operationId: listDevices
+      summary: 已登录设备（每个会话一条）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceList'
+              example:
+                items:
+                - session_id: 01JBX3K9Q2
+                  device_id: 5c1e2f0a-8d7b-4e3a-9f1c-2b6d7e8a9c01
+                  platform: android
+                  device_name: Pixel 8
+                  app_version: 1.0.0
+                  created_at: '2026-10-29T14:00:00.000Z'
+                  last_seen_at: '2026-10-29T14:30:12.000Z'
+                  current: true
+        '401': *id002
+        default:
+          $ref: '#/components/responses/Error'
+  /me/devices/{session_id}:
+    delete:
+      tags:
+      - devices
+      operationId: revokeDevice
+      summary: 踢下线（撤销该会话 refresh token 家族）
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: 已撤销
+        '401': *id002
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Error'
+  /sync/resume:
+    get:
+      tags:
+      - sync
+      operationId: getResume
+      summary: 读取续播位置
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeState'
+              example: &id003
+                track_id: 20261026-203123-746f
+                position_ms: 83500
+                queue:
+                - 20261026-203123-746f
+                - 20261026-163606-7ad3
+                device_id: 5c1e2f0a-8d7b-4e3a-9f1c-2b6d7e8a9c01
+                updated_at: '2026-10-29T14:30:12.345Z'
+                deleted: false
+        '401': *id002
+        '404':
+          description: 尚未设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags:
+      - sync
+      operationId: putResume
+      summary: 写入续播位置（LWW：updated_at 早于服务端则忽略并返回 409+当前值）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeState'
+            example: *id003
+      responses:
+        '200':
+          description: 已应用，返回服务端当前值
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeState'
+        '409':
+          description: ignored_older，返回服务端较新值
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeState'
+        '401': *id002
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          $ref: '#/components/responses/Error'
+  /sync/settings:
+    get:
+      tags:
+      - sync
+      operationId: getSettings
+      summary: 读取播放偏好
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSettings'
+              example: &id004
+                settings:
+                  audio_quality: high
+                  prefer_codec: opus
+                  download_wifi_only: true
+                  theme: system
+                updated_at: '2026-10-29T14:30:12.345Z'
+                deleted: false
+        '401': *id002
+        '404':
+          description: 尚未设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags:
+      - sync
+      operationId: putSettings
+      summary: 写入播放偏好（LWW：updated_at 早于服务端则忽略并返回 409+当前值）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSettings'
+            example: *id004
+      responses:
+        '200':
+          description: 已应用，返回服务端当前值
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSettings'
+        '409':
+          description: ignored_older，返回服务端较新值
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSettings'
+        '401': *id002
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT (EdDSA/Ed25519)
+  headers:
+    RateLimitLimit:
+      description: 当前窗口允许的请求数
+      schema:
+        type: integer
+    RateLimitRemaining:
+      description: 当前窗口剩余请求数
+      schema:
+        type: integer
+    RateLimitReset:
+      description: 距窗口重置的秒数
+      schema:
+        type: integer
+    RetryAfter:
+      description: 建议等待秒数
+      schema:
+        type: integer
+    RequestId:
+      description: 请求 ID，报错时请附上
+      schema:
+        type: string
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: 上一页返回的 next_cursor（不透明字符串）；首次全量同步不传
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 200
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 客户端生成的 UUID；24 小时内相同 key 返回相同结果
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Error:
+      description: 错误（统一结构）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      $ref: '#/components/responses/Error'
+    Unauthorized:
+      $ref: '#/components/responses/Error'
+    NotFound:
+      $ref: '#/components/responses/Error'
+    Conflict:
+      $ref: '#/components/responses/Error'
+    Unprocessable:
+      $ref: '#/components/responses/Error'
+    TooManyRequests:
+      description: 触发限流
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          - request_id
+          properties:
+            code:
+              type: string
+              description: 机器可读错误码，客户端据此分支，见 README
+              enum:
+              - VALIDATION_FAILED
+              - INVALID_CREDENTIALS
+              - ACCOUNT_LOCKED
+              - ACCOUNT_EXISTS
+              - WECHAT_CODE_INVALID
+              - WECHAT_UPSTREAM_ERROR
+              - TOKEN_MISSING
+              - TOKEN_EXPIRED
+              - TOKEN_INVALID
+              - REFRESH_TOKEN_INVALID
+              - REFRESH_TOKEN_REUSED
+              - SESSION_REVOKED
+              - PASSWORD_WEAK
+              - NOT_FOUND
+              - CURSOR_EXPIRED
+              - BATCH_TOO_LARGE
+              - RATE_LIMITED
+              - INTERNAL
+              - REAUTH_REQUIRED
+            message:
+              type: string
+              description: 面向开发者，不直接展示给用户
+            request_id:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  reason:
+                    type: string
+          examples:
+          - code: RATE_LIMITED
+            message: too many login attempts
+            request_id: 01JBX4ZK7M
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+    Password:
+      type: string
+      format: password
+      minLength: 8
+      maxLength: 128
+    ClientInfo:
+      type: object
+      required:
+      - platform
+      - device_id
+      properties:
+        platform:
+          type: string
+          enum:
+          - windows
+          - android
+          - miniprogram
+          - web
+        device_id:
+          type: string
+          maxLength: 64
+          description: 客户端首次启动生成并持久化的 UUID
+        device_name:
+          type: string
+          maxLength: 64
+        app_version:
+          type: string
+          maxLength: 32
+    RegisterRequest:
+      type: object
+      required:
+      - email
+      - password
+      - client
+      additionalProperties: false
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+        client:
+          $ref: '#/components/schemas/ClientInfo'
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      - client
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          type: string
+          format: password
+        client:
+          $ref: '#/components/schemas/ClientInfo'
+    TokenPair:
+      type: object
+      required:
+      - access_token
+      - token_type
+      - expires_in
+      - refresh_token
+      - refresh_expires_in
+      properties:
+        access_token:
+          type: string
+        token_type:
+          const: Bearer
+        expires_in:
+          type: integer
+          examples:
+          - 900
+        refresh_token:
+          type: string
+          description: 不透明随机串（非 JWT），服务端只存 SHA-256
+        refresh_expires_in:
+          type: integer
+          examples:
+          - 2592000
+    AuthResult:
+      allOf:
+      - $ref: '#/components/schemas/TokenPair'
+      - type: object
+        required:
+        - user
+        - session_id
+        properties:
+          user:
+            $ref: '#/components/schemas/User'
+          session_id:
+            type: string
+          is_new_user:
+            type: boolean
+            description: true 时客户端执行首登合并（README）
+    User:
+      type: object
+      required:
+      - id
+      - login_methods
+      - created_at
+      - membership_tier
+      properties:
+        id:
+          type: string
+          description: ULID
+        email:
+          type:
+          - string
+          - 'null'
+          description: 仅邮箱账号有
+        login_methods:
+          type: array
+          items:
+            type: string
+            enum:
+            - email
+            - wechat
+        created_at:
+          type: string
+          format: date-time
+        membership_tier:
+          type: string
+          readOnly: true
+          default: free
+          examples:
+          - free
+          description: 会员等级，v1 恒为 free，无付费功能；客户端只读
+    SyncMeta:
+      type: object
+      required:
+      - updated_at
+      - deleted
+      properties:
+        updated_at:
+          type: string
+          format: date-time
+          description: 客户端修改时间（UTC，毫秒），LWW 依据
+        deleted:
+          type: boolean
+          default: false
+          description: true 为墓碑
+        server_version:
+          type: integer
+          readOnly: true
+          description: 服务端单调递增版本，仅拉取时返回
+    FavoriteChange:
+      allOf:
+      - $ref: '#/components/schemas/SyncMeta'
+      - type: object
+        required:
+        - track_id
+        properties:
+          track_id:
+            type: string
+            description: 目录 /api/v1/catalog 中的曲目 ID
+    HistoryChange:
+      allOf:
+      - $ref: '#/components/schemas/SyncMeta'
+      - type: object
+        required:
+        - id
+        - track_id
+        - played_at
+        properties:
+          id:
+            type: string
+            description: 客户端生成的 UUID（同一次播放唯一）
+          track_id:
+            type: string
+          played_at:
+            type: string
+            format: date-time
+          position_ms:
+            type: integer
+            minimum: 0
+          duration_ms:
+            type: integer
+            minimum: 0
+          platform:
+            type: string
+        description: 服务端每用户保留最新 500 条
+    PageMeta:
+      type: object
+      required:
+      - next_cursor
+      - has_more
+      properties:
+        next_cursor:
+          type: string
+          description: 下次增量同步要带的游标；即使 has_more=false 也要保存
+        has_more:
+          type: boolean
+        server_time:
+          type: string
+          format: date-time
+    FavoritePage:
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/FavoriteChange'
+    HistoryPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/HistoryChange'
+    BatchResult:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            required:
+            - key
+            - status
+            properties:
+              key:
+                type: string
+                description: favorites=track_id，history/playlists=id，followed-singers=singer_id
+              status:
+                type: string
+                enum:
+                - applied
+                - ignored_older
+                - invalid
+              server_version:
+                type: integer
+              current:
+                description: ignored_older 时返回服务端当前值
+        next_cursor:
+          type: string
+    PlaylistChange:
+      x-planned: v1.1
+      allOf:
+      - &id005
+        $ref: '#/components/schemas/SyncMeta'
+      - type: object
+        required:
+        - id
+        - name
+        - items
+        properties:
+          id:
+            type: string
+            description: 客户端生成 UUID
+          name:
+            type: string
+            maxLength: 100
+          description:
+            type:
+            - string
+            - 'null'
+            maxLength: 500
+          sort_key:
+            type: number
+            description: 歌单在列表中的顺序
+          items:
+            type: array
+            maxItems: 1000
+            description: 按数组顺序即播放顺序；整表替换
+            items:
+              type: object
+              required:
+              - track_id
+              properties:
+                track_id:
+                  type: string
+                added_at:
+                  type: string
+                  format: date-time
+      examples:
+      - id: 9b2f6c1e-3a4d-4e5f-8a7b-1c2d3e4f5a6b
+        name: 深夜循环
+        sort_key: 1
+        items:
+        - track_id: 20261026-203123-746f
+          added_at: '2026-10-29T14:00:00.000Z'
+        updated_at: '2026-10-29T14:30:12.345Z'
+        deleted: false
+    FollowedSingerChange:
+      x-planned: v1.1
+      allOf:
+      - *id005
+      - type: object
+        required:
+        - singer_id
+        properties:
+          singer_id:
+            type: string
+            description: catalog.json 中的歌手 ID，如 xiayinhe
+      examples:
+      - singer_id: xiayinhe
+        updated_at: '2026-10-29T14:30:12.345Z'
+        deleted: false
+    ResumeState:
+      allOf:
+      - *id005
+      - type: object
+        required:
+        - track_id
+        - position_ms
+        properties:
+          track_id:
+            type: string
+          position_ms:
+            type: integer
+            minimum: 0
+          queue:
+            type: array
+            maxItems: 500
+            items:
+              type: string
+          device_id:
+            type: string
+    UserSettings:
+      allOf:
+      - *id005
+      - type: object
+        required:
+        - settings
+        properties:
+          settings:
+            type: object
+            description: 自由 JSON（≤16 KB），整对象 LWW
+            additionalProperties: true
+    DeleteAccountRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          format: password
+          description: 邮箱账号必填
+        confirm:
+          const: DELETE
+          description: 微信账号必填
+    DeviceList:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+            - session_id
+            - device_id
+            - platform
+            - created_at
+            - last_seen_at
+            - current
+            properties:
+              session_id:
+                type: string
+              device_id:
+                type: string
+              platform:
+                type: string
+              device_name:
+                type:
+                - string
+                - 'null'
+              app_version:
+                type:
+                - string
+                - 'null'
+              created_at:
+                type: string
+                format: date-time
+              last_seen_at:
+                type: string
+                format: date-time
+              current:
+                type: boolean
+x-planned:
+  v1.1:
+  - /sync/playlists（歌单+有序曲目，沿用 favorites 的 cursor 增量+LWW 模式，整张歌单为一条记录）
+  - /sync/followed-singers（singer_id 取自 catalog.json）
+  - 忘记密码/邮箱验证（需 SMTP）
+  - 微信开放平台扫码登录
