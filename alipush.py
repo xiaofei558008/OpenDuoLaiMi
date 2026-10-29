@@ -18,7 +18,7 @@ for r,d,f in os.walk("songs"):
         if x=="mv.mp4": continue
         if rp in have and have[rp]==os.path.getsize(lp) and not x.endswith((".json",".html",".m3u8",".js")): continue
         need.append(lp)
-need.append("duo.html"); need.append("api/duo/v1/catalog.json"); ch=[];cur=[];sz=0
+need.append("duo.html"); need.append("download/duo.html"); need.append("api/duo/v1/catalog.json"); ch=[];cur=[];sz=0
 for p in need:
     s=os.path.getsize(p)
     if sz+s>LIM and cur: ch.append(cur);cur=[];sz=0
